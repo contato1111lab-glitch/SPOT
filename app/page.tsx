@@ -1,30 +1,939 @@
-// TypeScript / app/page.tsx / Next.js 14+ / browser target
+// TypeScript / app/page.tsx / Next.js App Router / browser target
 'use client';
 
-import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Pause, Play, Sparkles } from 'lucide-react';
+import { Check, Pause, Play, Volume2 } from 'lucide-react';
 import Image from 'next/image';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import './globals.css';
+import { useEffect, useRef, useState } from 'react';
 
-type Song = { id:string; title:string; artist:string; cover:string; audioUrl:string; reward:number; questions:string[] };
+type Song = {
+  id: string;
+  title: string;
+  artist: string;
+  cover: string;
+  audioUrl: string;
+  reward: number;
+  questions: string[];
+};
+
 type Answers = Record<string, string | undefined>;
+
+// 4 active songs as stated in Message 3 ("We've selected four songs...")
 const songs: Song[] = [
-  { id:'adele', title:'Someone Like You', artist:'Adele', cover:'/covers/adele.jpg', audioUrl:'/audio/adele-preview.m4a', reward:67.45, questions:['Do you listen to Adele often?','Do you usually listen to Someone Like You?'] },
-  { id:'olivia', title:'good 4 u', artist:'Olivia Rodrigo', cover:'/covers/olivia.jpg', audioUrl:'/audio/olivia-preview.m4a', reward:74.2, questions:['Do you listen to Olivia Rodrigo often?','Do you usually listen to good 4 u?'] },
-  { id:'weeknd', title:'Blinding Lights', artist:'The Weeknd', cover:'/covers/weeknd.jpg', audioUrl:'/audio/weeknd-preview.m4a', reward:81.3, questions:['Do you listen to The Weeknd often?','Do you usually listen to Blinding Lights?'] },
-  { id:'dua-lipa', title:'Levitating', artist:'Dua Lipa', cover:'/covers/dua-lipa.jpg', audioUrl:'/audio/dua-lipa-preview.m4a', reward:69.8, questions:['Do you listen to Dua Lipa often?','Do you usually listen to Levitating?'] },
-  { id:'harry-styles', title:'As It Was', artist:'Harry Styles', cover:'/covers/harry-styles.jpg', audioUrl:'/audio/harry-styles-preview.m4a', reward:78.5, questions:['Do you listen to Harry Styles often?','Do you usually listen to As It Was?'] },
-  { id:'miley', title:'Flowers', artist:'Miley Cyrus', cover:'/covers/miley.jpg', audioUrl:'/audio/miley-preview.m4a', reward:67.52, questions:['Do you listen to Miley Cyrus often?','Do you usually listen to Flowers?'] },
+  {
+    id: 'adele',
+    title: 'Someone Like You',
+    artist: 'Adele',
+    cover: '/covers/adele.jpg',
+    audioUrl: '/audio/adele-preview.m4a',
+    reward: 67.45,
+    questions: [
+      'Do you listen to Adele often?',
+      'Do you usually listen to Someone Like You?',
+    ],
+  },
+  {
+    id: 'olivia',
+    title: 'good 4 u',
+    artist: 'Olivia Rodrigo',
+    cover: '/covers/olivia.jpg',
+    audioUrl: '/audio/olivia-preview.m4a',
+    reward: 74.2,
+    questions: [
+      'Do you listen to Olivia Rodrigo often?',
+      'Do you usually listen to good 4 u?',
+    ],
+  },
+  {
+    id: 'weeknd',
+    title: 'Blinding Lights',
+    artist: 'The Weeknd',
+    cover: '/covers/weeknd.jpg',
+    audioUrl: '/audio/weeknd-preview.m4a',
+    reward: 81.3,
+    questions: [
+      'Do you listen to The Weeknd often?',
+      'Do you usually listen to Blinding Lights?',
+    ],
+  },
+  {
+    id: 'dua-lipa',
+    title: 'Levitating',
+    artist: 'Dua Lipa',
+    cover: '/covers/dua-lipa.jpg',
+    audioUrl: '/audio/dua-lipa-preview.m4a',
+    reward: 69.8,
+    questions: [
+      'Do you listen to Dua Lipa often?',
+      'Do you usually listen to Levitating?',
+    ],
+  },
 ];
 
-function Logo({small=false}:{small?:boolean}) { return <div className={`logo ${small?'logo-small':''}`}><Image className="logo-image" src="/spotify-logo.webp" alt="Spotify" width={48} height={48}/><b>Rewards</b></div>; }
-function LoadingScreen({done}:{done:()=>void}) { const [progress,setProgress]=useState(0); useEffect(()=>{ const id=setInterval(()=>setProgress(p=>{if(p>=100){clearInterval(id);setTimeout(done,280);return 100;} return p+2;}),35); return()=>clearInterval(id); },[done]); return <motion.main className="loading" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><div className="loading-inner"><div className="brand-line"><Logo/><span/> <small>CASHOUT</small></div><div className="spinner"/><strong>Connecting to support representative...</strong><div className="progress"><i style={{width:`${progress}%`}}/></div></div></motion.main>; }
-function Header({balance}:{balance:number}) { return <header><div className="brand-line"><Logo/><span/><small>CASHOUT</small></div><div className="balance">${balance.toFixed(2)}</div></header>; }
-function Message({children,delay=0,showLogo=false}:{children:React.ReactNode;delay?:number;showLogo?:boolean}) { return <motion.div className={`message-row${showLogo?' with-logo':''}`}><motion.div className="message" initial={{opacity:0,y:18,scale:.975}} animate={{opacity:1,y:0,scale:1}} transition={{delay,duration:.95,ease:[.16,1,.3,1]}}>{children}</motion.div>{showLogo&&<div className="message-avatar"><Image src="/spotify-logo.webp" alt="Spotify" width={48} height={48}/></div>}</motion.div>; }
-function TypingIndicator({agent=false}:{agent?:boolean}) { return <motion.div className="typing-row" initial={{opacity:0,y:5}} animate={{opacity:1,y:0}} exit={{opacity:0,y:5}}><div className="typing-avatar"><Image src={agent?"/agent-avatar.jpg":"/spotify-logo.webp"} alt={agent?"Kaitlynn":"Spotify"} width={48} height={48}/></div><div className="typing-bubble"><i/><i/><i/></div></motion.div>; }
-function AudioPreviewPlayer({song, unlocked, onUnlock}:{song:Song;unlocked:boolean;onUnlock:()=>void}) { const audio=useRef<HTMLAudioElement|null>(null); const fadeTimer=useRef<ReturnType<typeof setInterval>|null>(null); const [playing,setPlaying]=useState(false); const [heard,setHeard]=useState(0); const [started,setStarted]=useState(false); const [error,setError]=useState(false); const toggle=async()=>{ if(!audio.current)return; if(playing){audio.current.pause();setPlaying(false);} else {try{audio.current.volume=1;await audio.current.play();setStarted(true);setPlaying(true);}catch{setError(true);}}}; useEffect(()=>{const el=audio.current;if(!el)return; const tick=()=>{const t=el.currentTime;setHeard(Math.min(1,Math.max(0,t))); if(t>=1&&!unlocked){onUnlock(); if(fadeTimer.current)clearInterval(fadeTimer.current); const startVolume=el.volume; const startedAt=performance.now(); fadeTimer.current=setInterval(()=>{const progress=Math.min(1,(performance.now()-startedAt)/900);el.volume=startVolume*(1-progress);if(progress>=1){if(fadeTimer.current)clearInterval(fadeTimer.current);fadeTimer.current=null;el.pause();el.volume=1;setPlaying(false);}},40);}};const play=()=>{setStarted(true);setPlaying(true)};const pause=()=>setPlaying(false);el.addEventListener('timeupdate',tick);el.addEventListener('play',play);el.addEventListener('pause',pause);return()=>{el.removeEventListener('timeupdate',tick);el.removeEventListener('play',play);el.removeEventListener('pause',pause);if(fadeTimer.current)clearInterval(fadeTimer.current)}},[onUnlock,unlocked]); const remaining=Math.ceil(1-heard); const notice=error?'Audio preview unavailable.':unlocked?'🎉 Preview finished! Answer the questions below and tap FINISH & EARN':playing?`🎵 Listen to the preview (${remaining}s remaining) to unlock evaluation.`:started?`🎵 Preview paused (${remaining}s remaining). Press PLAY again to finish listening and unlock evaluation.`:'🎵 Press PLAY to listen to the preview and unlock the evaluation.'; return <><audio ref={audio} src={song.audioUrl} preload="metadata" onError={()=>setError(true)}/><div className="notice">{notice}</div><div className={`player ${playing?'is-playing':''}`}><div className="cover"><Image src={song.cover} alt={`${song.artist} album cover`} fill sizes="58px"/></div><div className="track"><b>{song.title}</b><div><em>PREVIEW</em><small>{song.artist}</small></div></div><button className="play" onClick={toggle} aria-label={playing?'Pause':'Play'}>{playing?<Pause size={20} fill="currentColor"/>:<Play size={20} fill="currentColor"/>}</button></div></>; }
-function EvaluationCard({song,onComplete}:{song:Song;onComplete:(amount:number)=>void}) { const [unlocked,setUnlocked]=useState(false); const [answers,setAnswers]=useState<Answers>({}); const ready=unlocked&&song.questions.every((_,i)=>answers[i]); return <motion.div className="card-shell" initial={{opacity:0,y:18}} animate={{opacity:1,y:0}}><div className="eval-card"><AudioPreviewPlayer song={song} unlocked={unlocked} onUnlock={()=>setUnlocked(true)}/><div className="questions">{song.questions.map((question,i)=><div className="question" key={question}><b>{question}</b><div className="options">{['Yes','No'].map(option=><button key={option} disabled={!unlocked} className={answers[i]===option?'selected':''} onClick={()=>setAnswers(a=>({...a,[i]:option}))}>{option}</button>)}</div></div>)}</div><button className={`finish ${ready?'ready':''}`} disabled={!ready} onClick={()=>onComplete(song.reward)}>FINISH &amp; EARN</button></div></motion.div>; }
-function Success({amount}:{amount:number}) { return <motion.div className="success"><div className="success-inner"><motion.div className="check" initial={{scale:0}} animate={{scale:1}} transition={{type:'spring',stiffness:240,damping:14}}><Check/></motion.div><b>Evaluation Submitted!</b><small>BALANCE UPDATED</small><motion.strong initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:.15}}>+${amount.toFixed(2)}</motion.strong></div></motion.div>; }
-function DemoSummary({balance}:{balance:number}) { return <motion.section className="demo-summary" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{duration:.8}}><div className="demo-summary-head"><Image src="/spotify-logo.webp" alt="" width={24} height={24}/><strong>Rewards</strong><span className="demo-tag">DEMO</span></div><div className="demo-summary-band">BALANCE SUMMARY</div><div className="demo-summary-body"><div className="demo-summary-parties"><div><b>ACTIVITY</b><strong>Music evaluations</strong><span>Rewards session</span></div><div><b>TRACKS</b><strong>{songs.length}</strong></div></div><div className="demo-summary-grid"><span>Description</span><span>Tracks</span><span>Balance</span><span>Music evaluations</span><span>{songs.length}</span><strong>${balance.toFixed(2)}</strong></div><div className="demo-summary-total"><span>ACCUMULATED BALANCE</span><strong>${balance.toFixed(2)}</strong></div></div><div className="demo-summary-foot"><Image src="/spotify-logo.webp" alt="" width={26} height={26}/></div></motion.section>; }
-export default function Page(){ const [loading,setLoading]=useState(true); const [balance,setBalance]=useState(0); const [displayBalance,setDisplayBalance]=useState(0); const [songIndex,setSongIndex]=useState(0); const [submitted,setSubmitted]=useState(false); const [messageCount,setMessageCount]=useState(0); const [typing,setTyping]=useState(false); const [cardVisible,setCardVisible]=useState(false); const [finalStage,setFinalStage]=useState(false); const [finalMessageStep,setFinalMessageStep]=useState(0); const [finalTyping,setFinalTyping]=useState(false); const [agentJoined,setAgentJoined]=useState(false); const [videoVisible,setVideoVisible]=useState(false); const [videoCardVisible,setVideoCardVisible]=useState(false); const [followupVisible,setFollowupVisible]=useState(false); const [summaryLoading,setSummaryLoading]=useState(false); const [summaryVisible,setSummaryVisible]=useState(false); const cashRef=useRef<HTMLAudioElement|null>(null); const messagesRef=useRef<HTMLDivElement|null>(null); const [sessionId]=useState(()=>{if(typeof window==='undefined')return '809821';const saved=sessionStorage.getItem('rewards-case');if(saved)return saved;const id=String(Math.floor(100000+Math.random()*899999));sessionStorage.setItem('rewards-case',id);return id;}); const [completed,setCompleted]=useState<number[]>([]); const song=songs[songIndex]; const finish=(amount:number)=>{if(completed.includes(songIndex))return;setCompleted(c=>[...c,songIndex]);setSubmitted(true);cashRef.current?.play().catch(()=>{});const start=displayBalance;const end=balance+amount;const startAt=performance.now();const animate=(now:number)=>{const p=Math.min(1,(now-startAt)/1100);setDisplayBalance(start+(end-start)*(1-Math.pow(1-p,3)));if(p<1)requestAnimationFrame(animate);else setBalance(end);};requestAnimationFrame(animate);}; useEffect(()=>{if(!videoVisible)return;const showVideo=setTimeout(()=>setVideoCardVisible(true),3000);const timer=setTimeout(()=>setFollowupVisible(true),15000);return()=>{clearTimeout(timer);clearTimeout(showVideo)}},[videoVisible]); useEffect(()=>{if(!finalStage)return;setFinalMessageStep(0);setFinalTyping(true);const a=setTimeout(()=>{setFinalMessageStep(1);setFinalTyping(true)},3000);const b=setTimeout(()=>{setFinalMessageStep(2);setFinalTyping(false)},6000);return()=>{clearTimeout(a);clearTimeout(b)}},[finalStage]); useEffect(()=>{if(!submitted)return;const timer=setTimeout(()=>{if(songIndex<songs.length-1){setSubmitted(false);setSongIndex(i=>i+1)}else{setFinalStage(true)}},4000);return()=>clearTimeout(timer)},[submitted,songIndex]); useEffect(()=>{if(typeof window!=='undefined'){const saved=sessionStorage.getItem('rewards-balance');if(saved){const v=Number(saved);setBalance(v);setDisplayBalance(v);}}},[]);useEffect(()=>{if(typeof window!=='undefined')sessionStorage.setItem('rewards-balance',String(balance));},[balance]); useEffect(()=>{if(loading)return; const area=messagesRef.current; if(!area)return; const frame=requestAnimationFrame(()=>area.scrollTo({top:area.scrollHeight,behavior:"smooth"})); return()=>cancelAnimationFrame(frame);},[loading,messageCount,cardVisible,songIndex,submitted,finalStage,agentJoined,videoVisible,followupVisible,summaryLoading,summaryVisible]); useEffect(()=>{if(loading)return; setMessageCount(0); setTyping(true); const timers=[setTimeout(()=>setMessageCount(1),3000),setTimeout(()=>setMessageCount(2),6000),setTimeout(()=>setMessageCount(3),9000),setTimeout(()=>{setTyping(false);setCardVisible(true)},12000)]; return()=>timers.forEach(clearTimeout);},[loading]); return <AnimatePresence mode="wait">{loading?<LoadingScreen key="load" done={()=>setLoading(false)}/>:<motion.div key="app" className="page" initial={{opacity:0}} animate={{opacity:1}}><Header balance={displayBalance}/><audio ref={cashRef} src="/audio/cash-confirmation.mp3" preload="auto"/><main className="conversation"><section className="agent"><div className="avatar"><Image src="/agent-avatar.jpg" alt="Kaitlynn W." width={58} height={58}/></div><div><b>Kaitlynn W.</b><small><i/> Live Support Agent</small></div></section><div className="messages" ref={messagesRef}>{typing&&messageCount===0&&<TypingIndicator agent={agentJoined}/>}{messageCount>=1&&<Message showLogo={messageCount===1&&!typing}><b>To begin your service,</b> your case number is_<br/><u>{sessionId}</u></Message>}{typing&&messageCount===1&&<TypingIndicator agent={agentJoined}/>}{messageCount>=2&&<Message showLogo={messageCount===2&&!typing}>You've been <b>one of the few people</b> selected for the <b>Spotify Rewards Program</b></Message>}{typing&&messageCount===2&&<TypingIndicator agent={agentJoined}/>}{messageCount>=3&&<Message showLogo={false}><b>We've selected four songs for you to listen to and rate. Get started right here below.</b> 👇</Message>}{typing&&messageCount===3&&<TypingIndicator agent={agentJoined}/>}{cardVisible&&<AnimatePresence mode="wait"><div className="song-row with-logo" key={song.id}><div className="song-content">{submitted?<><Success amount={song.reward}/></>:<EvaluationCard song={song} onComplete={finish}/>}</div></div></AnimatePresence>}{finalStage&&<div className="final-stage">{finalMessageStep>=1&&<motion.div className="message" initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:.8}}><u>Click the button below to continue with your registration.</u></motion.div>}{finalTyping&&<TypingIndicator agent={agentJoined}/>}{finalMessageStep>=2&&<motion.div className="message" initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:.8}}><em>(Click the button below to continue with your withdrawal)</em></motion.div>}{finalMessageStep>=2&&<button type="button" className="verification-button" onClick={()=>{setAgentJoined(true);setTimeout(()=>setVideoVisible(true),3000)}} disabled={agentJoined}>Start Verification</button>}{agentJoined&&<motion.div className="joined-row" initial={{opacity:0,y:18}} animate={{opacity:1,y:0}} transition={{duration:.8,ease:[.16,1,.3,1]}}><Image src="/agent-avatar.jpg" alt="Kaitlynn W." width={48} height={48}/><div className="message"><b>✅ Kaitlynn, the Spotify Rewards representative, has joined the chat</b></div></motion.div>}{videoVisible&&<motion.div className="agent-video-sequence" initial={{opacity:0,y:18}} animate={{opacity:1,y:0}} transition={{duration:.8}}><div className="message">👋 Hi, welcome to the <b>Spotify Rewards!</b></div>{videoCardVisible?<div className="agent-video-card"><video controls playsInline preload="metadata" poster="/agent-avatar.jpg" src="/kaitlynn-video.mp4" aria-label="Video from Kaitlynn"/></div>:<div className="typing-row agent-typing"><div className="typing-avatar"><Image src="/agent-avatar.jpg" alt="Kaitlynn" width={48} height={48}/></div><div className="typing-bubble"><i/><i/><i/></div></div>}</motion.div>}{followupVisible&&<motion.div className="agent-followup" initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:.8}}><div className="message">You have a balance of <b>${balance.toFixed(2)}</b> in our app</div><div className="message">Would you like to continue so you can withdraw <b>your money?</b></div><div className="joined-row"><Image src="/agent-avatar.jpg" alt="Kaitlynn W." width={48} height={48}/><div className="message"><em>(Click the button below to continue)</em></div></div><button type="button" className="verification-button followup-button" onClick={()=>{setSummaryLoading(true);setTimeout(()=>{setSummaryLoading(false);setSummaryVisible(true)},10000)}} disabled={summaryLoading||summaryVisible}>Yes, I would like to withdraw</button>{summaryLoading&&<div className="message"><b>⏳ Loading summary...</b></div>}{summaryVisible&&<><DemoSummary balance={balance}/><motion.div className="claim-prompt" initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:.7}}><div className="joined-row"><Image src="/agent-avatar.jpg" alt="Kaitlynn W." width={48} height={48}/><div className="message"><em>(Click the button below to continue)</em></div></div><button type="button" className="verification-button followup-button">Continue demo</button></motion.div></>}</motion.div>}</div>}</div></main></motion.div>}</AnimatePresence>; }
+function BrandLogo({ dark = false }: { dark?: boolean }) {
+  return (
+    <div className={`logo ${dark ? 'logo-dark' : ''}`}>
+      <Image
+        className="logo-image"
+        src="/spotify-logo.webp"
+        alt="Spotify"
+        width={34}
+        height={34}
+        priority
+      />
+      <b>Rewards</b>
+    </div>
+  );
+}
+
+function LoadingScreen({ onFinish }: { onFinish: () => void }) {
+  const [progress, setProgress] = useState(0);
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
+
+  useEffect(() => {
+    const startTime = performance.now();
+    const duration = 1200; // 1.2s smooth fill
+
+    const timer = setInterval(() => {
+      const elapsed = performance.now() - startTime;
+      const pct = Math.min(100, Math.round((elapsed / duration) * 100));
+      setProgress(pct);
+
+      if (pct >= 100) {
+        clearInterval(timer);
+        setTimeout(() => {
+          onFinishRef.current();
+        }, 120);
+      }
+    }, 25);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div
+      className="loading-screen"
+      onClick={() => onFinishRef.current()}
+      role="button"
+      tabIndex={0}
+      title="Click anywhere to skip loading"
+    >
+      <div className="loading-inner">
+        <div className="brand-line">
+          <BrandLogo dark />
+          <span />
+          <small>CASHOUT</small>
+        </div>
+
+        <div className="spinner" />
+
+        <h1 className="loading-title">Connecting to support representative...</h1>
+
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatHeader({ balance }: { balance: number }) {
+  return (
+    <header className="chat-header">
+      <div className="brand-line">
+        <BrandLogo />
+        <span />
+        <small>CASHOUT</small>
+      </div>
+      <div className="balance-pill">${balance.toFixed(2)}</div>
+    </header>
+  );
+}
+
+function SpotifyAvatar() {
+  return (
+    <div className="chat-avatar pop-bounce" title="Spotify Rewards Bot">
+      <Image
+        src="/spotify-logo.webp"
+        alt="Spotify"
+        width={48}
+        height={48}
+        priority
+      />
+    </div>
+  );
+}
+
+function MessageBubble({
+  children,
+  showAvatar = false,
+}: {
+  children: React.ReactNode;
+  showAvatar?: boolean;
+}) {
+  return (
+    <div className="msg-row msg-anim">
+      {showAvatar && <SpotifyAvatar />}
+      <div className="msg-bubble">{children}</div>
+    </div>
+  );
+}
+
+function TypingIndicator({
+  showAvatar = false,
+  isAgent = false,
+}: {
+  showAvatar?: boolean;
+  isAgent?: boolean;
+}) {
+  return (
+    <div className="typing-row msg-anim">
+      {showAvatar && (
+        isAgent ? (
+          <div className="chat-avatar pop-bounce" title="Kaitlynn W.">
+            <Image
+              src="/agent-avatar.jpg"
+              alt="Kaitlynn"
+              width={48}
+              height={48}
+            />
+          </div>
+        ) : (
+          <SpotifyAvatar />
+        )
+      )}
+      <div className="typing-bubble">
+        <i />
+        <i />
+        <i />
+      </div>
+    </div>
+  );
+}
+
+function AudioPlayer({
+  song,
+  unlocked,
+  onUnlock,
+}: {
+  song: Song;
+  unlocked: boolean;
+  onUnlock: () => void;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const unlockSafetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [playing, setPlaying] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  const togglePlay = async () => {
+    if (!audioRef.current) return;
+
+    if (playing) {
+      audioRef.current.pause();
+      setPlaying(false);
+    } else {
+      try {
+        audioRef.current.volume = 1;
+        await audioRef.current.play();
+        setPlaying(true);
+
+        // Safety fallback: in case browser throttles timeupdate in iframes,
+        // automatically unlock after 1.2 seconds of playback!
+        if (unlockSafetyTimerRef.current) clearTimeout(unlockSafetyTimerRef.current);
+        unlockSafetyTimerRef.current = setTimeout(() => {
+          if (!unlocked) {
+            onUnlock();
+          }
+        }, 1200);
+      } catch (err) {
+        console.warn('Audio playback error (browser policy / sandbox):', err);
+        setHasError(true);
+        // Never leave user blocked on audio error
+        onUnlock();
+      }
+    }
+  };
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    const onTimeUpdate = () => {
+      const current = el.currentTime;
+
+      if (current >= 1 && !unlocked) {
+        onUnlock();
+
+        // Fade audio smoothly
+        if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+        const startVol = el.volume;
+        const startT = performance.now();
+
+        fadeTimerRef.current = setInterval(() => {
+          const progress = Math.min(1, (performance.now() - startT) / 800);
+          el.volume = startVol * (1 - progress);
+          if (progress >= 1) {
+            if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+            fadeTimerRef.current = null;
+            el.pause();
+            el.volume = 1;
+            setPlaying(false);
+          }
+        }, 40);
+      }
+    };
+
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    const onError = () => {
+      setHasError(true);
+      onUnlock();
+    };
+
+    el.addEventListener('timeupdate', onTimeUpdate);
+    el.addEventListener('play', onPlay);
+    el.addEventListener('pause', onPause);
+    el.addEventListener('error', onError);
+
+    return () => {
+      el.removeEventListener('timeupdate', onTimeUpdate);
+      el.removeEventListener('play', onPlay);
+      el.removeEventListener('pause', onPause);
+      el.removeEventListener('error', onError);
+      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+      if (unlockSafetyTimerRef.current) clearTimeout(unlockSafetyTimerRef.current);
+    };
+  }, [onUnlock, unlocked]);
+
+  const noticeText = hasError
+    ? '⚠️ Audio preview restricted by browser — questions unlocked below!'
+    : unlocked
+    ? '🎉 Preview completed! Answer the questions below and tap FINISH & EARN'
+    : playing
+    ? '🎵 Playing preview... unlock in 1 second'
+    : '🎵 Press PLAY to listen to the preview and unlock the evaluation.';
+
+  return (
+    <>
+      <audio
+        ref={audioRef}
+        src={song.audioUrl}
+        preload="auto"
+        onError={() => {
+          setHasError(true);
+          onUnlock();
+        }}
+      />
+
+      <div
+        className={`notice-banner ${unlocked ? 'is-unlocked' : ''}`}
+        onClick={() => {
+          if (!unlocked) onUnlock();
+        }}
+        role="button"
+        tabIndex={0}
+        title={!unlocked ? 'Click to bypass and unlock evaluation' : undefined}
+      >
+        {noticeText}
+      </div>
+
+      <div className={`track-player ${playing ? 'is-playing' : ''}`}>
+        <div className="track-cover">
+          <Image
+            src={song.cover}
+            alt={`${song.artist} cover`}
+            fill
+            sizes="56px"
+          />
+        </div>
+
+        <div className="track-meta">
+          <b>{song.title}</b>
+          <div>
+            <em>PREVIEW</em>
+            <small>{song.artist}</small>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="play-btn"
+          onClick={togglePlay}
+          aria-label={playing ? 'Pause preview' : 'Play preview'}
+        >
+          {playing ? (
+            <Pause size={22} fill="currentColor" />
+          ) : (
+            <Play size={22} fill="currentColor" className="ml-0.5" />
+          )}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function EvaluationCard({
+  song,
+  songIndex,
+  totalSongs,
+  showAvatar = true,
+  onComplete,
+}: {
+  song: Song;
+  songIndex: number;
+  totalSongs: number;
+  showAvatar?: boolean;
+  onComplete: (amount: number) => void;
+}) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [answers, setAnswers] = useState<Answers>({});
+
+  const isReady = unlocked && song.questions.every((_, idx) => answers[idx]);
+
+  return (
+    <div className="card-shell msg-anim">
+      {showAvatar && <SpotifyAvatar />}
+
+      <div className="eval-card">
+        <div className="track-progress-badge">
+          Track {songIndex + 1} of {totalSongs} • Earn ${song.reward.toFixed(2)}
+        </div>
+
+        <AudioPlayer
+          song={song}
+          unlocked={unlocked}
+          onUnlock={() => setUnlocked(true)}
+        />
+
+        <div className="questions-list">
+          {song.questions.map((question, idx) => (
+            <div className="question-block" key={question}>
+              <b>{question}</b>
+              <div className="options-grid">
+                {['Yes', 'No'].map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    disabled={!unlocked}
+                    className={`opt-btn ${
+                      answers[idx] === opt ? 'selected' : ''
+                    }`}
+                    onClick={() =>
+                      setAnswers((prev) => ({ ...prev, [idx]: opt }))
+                    }
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          className={`finish-btn ${isReady ? 'ready' : ''}`}
+          disabled={!isReady}
+          onClick={() => onComplete(song.reward)}
+        >
+          FINISH &amp; EARN
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SuccessCard({ amount }: { amount: number }) {
+  return (
+    <div className="card-shell msg-anim">
+      <SpotifyAvatar />
+      <div className="success-card">
+        <div className="check-icon">
+          <Check size={28} strokeWidth={3} />
+        </div>
+        <b>Evaluation Submitted!</b>
+        <small>BALANCE UPDATED</small>
+        <strong>+${amount.toFixed(2)}</strong>
+      </div>
+    </div>
+  );
+}
+
+function DemoSummary({
+  balance,
+  totalSongs,
+}: {
+  balance: number;
+  totalSongs: number;
+}) {
+  return (
+    <section className="demo-summary-box msg-anim">
+      <div className="summary-header">
+        <Image
+          src="/spotify-logo.webp"
+          alt="Spotify"
+          width={22}
+          height={22}
+        />
+        <strong>Rewards</strong>
+        <span className="tag">DEMO</span>
+      </div>
+
+      <div className="summary-banner">BALANCE SUMMARY</div>
+
+      <div className="summary-content">
+        <div className="summary-parties">
+          <div>
+            <b>ACTIVITY</b>
+            <strong>Music evaluations</strong>
+            <span>Rewards session</span>
+          </div>
+          <div>
+            <b>TRACKS</b>
+            <strong>{totalSongs} completed</strong>
+          </div>
+        </div>
+
+        <div className="summary-grid">
+          <span className="th">Description</span>
+          <span className="th">Tracks</span>
+          <span className="th">Balance</span>
+          <span>Music evaluations</span>
+          <span>{totalSongs}</span>
+          <strong>${balance.toFixed(2)}</strong>
+        </div>
+
+        <div className="summary-total">
+          <span>ACCUMULATED BALANCE</span>
+          <strong>${balance.toFixed(2)}</strong>
+        </div>
+      </div>
+
+      <div className="summary-footer">
+        <Image
+          src="/spotify-logo.webp"
+          alt="Spotify"
+          width={24}
+          height={24}
+        />
+      </div>
+    </section>
+  );
+}
+
+export default function Page() {
+  const [loading, setLoading] = useState(true);
+  const [balance, setBalance] = useState(0);
+  const [displayBalance, setDisplayBalance] = useState(0);
+  const [songIndex, setSongIndex] = useState(0);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Chat sequence state machine:
+  // step 0: Typing 1
+  // step 1: Msg 1 displayed
+  // step 2: Typing 2
+  // step 3: Msg 2 displayed
+  // step 4: Typing 3
+  // step 5: Msg 3 displayed
+  // step 6: Typing 4
+  // step 7: Song Card displayed!
+  const [chatStep, setChatStep] = useState(0);
+
+  // Final stage sequence
+  const [finalStage, setFinalStage] = useState(false);
+  const [finalStep, setFinalStep] = useState(0);
+  const [agentJoined, setAgentJoined] = useState(false);
+  const [videoVisible, setVideoVisible] = useState(false);
+
+  const [sessionId, setSessionId] = useState('809821');
+  const [completedSongs, setCompletedSongs] = useState<number[]>([]);
+
+  const cashAudioRef = useRef<HTMLAudioElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const currentSong = songs[songIndex] || songs[0];
+
+  // Initialize session ID and balance safely without crashing iframe storage
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const savedCase = window.sessionStorage?.getItem('rewards-case');
+        if (savedCase) {
+          setSessionId(savedCase);
+        } else {
+          const generated = String(Math.floor(100000 + Math.random() * 899999));
+          window.sessionStorage?.setItem('rewards-case', generated);
+          setSessionId(generated);
+        }
+
+        const savedBal = window.sessionStorage?.getItem('rewards-balance');
+        if (savedBal) {
+          const val = Number(savedBal);
+          if (!isNaN(val)) {
+            setBalance(val);
+            setDisplayBalance(val);
+          }
+        }
+      }
+    } catch {
+      // Storage fallback
+    }
+  }, []);
+
+  // Save balance safely
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage?.setItem('rewards-balance', String(balance));
+      }
+    } catch {
+      // Storage fallback
+    }
+  }, [balance]);
+
+  // Step-by-step chat pacing
+  useEffect(() => {
+    if (loading) return;
+
+    // Reset to step 0 when chat opens
+    setChatStep(0);
+
+    const timeouts = [
+      setTimeout(() => setChatStep(1), 900),   // Msg 1 pops
+      setTimeout(() => setChatStep(2), 1700),  // Typing 2
+      setTimeout(() => setChatStep(3), 2600),  // Msg 2 pops
+      setTimeout(() => setChatStep(4), 3500),  // Typing 3
+      setTimeout(() => setChatStep(5), 4400),  // Msg 3 pops
+      setTimeout(() => setChatStep(6), 5200),  // Typing 4
+      setTimeout(() => setChatStep(7), 6100),  // Song card pops!
+    ];
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+    };
+  }, [loading]);
+
+  // Reset entire flow
+  const handleReset = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage?.removeItem('rewards-balance');
+      }
+    } catch {}
+    setBalance(0);
+    setDisplayBalance(0);
+    setSongIndex(0);
+    setSubmitted(false);
+    setFinalStage(false);
+    setFinalStep(0);
+    setAgentJoined(false);
+    setVideoVisible(false);
+    setCompletedSongs([]);
+    setLoading(true);
+  };
+
+  // Handle completing an evaluation
+  const handleFinishSong = (rewardAmount: number) => {
+    if (completedSongs.includes(songIndex)) return;
+
+    setCompletedSongs((prev) => [...prev, songIndex]);
+    setSubmitted(true);
+
+    cashAudioRef.current?.play().catch(() => {});
+
+    const startVal = displayBalance;
+    const endVal = balance + rewardAmount;
+    const startTimestamp = performance.now();
+
+    const animateNumber = (now: number) => {
+      const progress = Math.min(1, (now - startTimestamp) / 800);
+      const current = startVal + (endVal - startVal) * (1 - Math.pow(1 - progress, 3));
+      setDisplayBalance(current);
+
+      if (progress < 1) {
+        requestAnimationFrame(animateNumber);
+      } else {
+        setBalance(endVal);
+        setDisplayBalance(endVal);
+      }
+    };
+
+    requestAnimationFrame(animateNumber);
+  };
+
+  // Next song transition
+  useEffect(() => {
+    if (!submitted) return;
+
+    const timer = setTimeout(() => {
+      if (songIndex < songs.length - 1) {
+        setSubmitted(false);
+        setSongIndex((i) => i + 1);
+      } else {
+        setFinalStage(true);
+      }
+    }, 2600);
+
+    return () => clearTimeout(timer);
+  }, [submitted, songIndex]);
+
+  // Final stage messages pacing
+  useEffect(() => {
+    if (!finalStage) return;
+
+    setFinalStep(0);
+    const t1 = setTimeout(() => setFinalStep(1), 800);
+    const t2 = setTimeout(() => setFinalStep(2), 2000);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [finalStage]);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToBottom = (smooth = true) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: smooth ? 'smooth' : 'auto',
+    });
+  };
+
+  // Auto-scroll on state changes
+  useEffect(() => {
+    if (loading) return;
+    const timeout = setTimeout(() => {
+      scrollToBottom(true);
+    }, 60);
+
+    return () => clearTimeout(timeout);
+  }, [
+    loading,
+    chatStep,
+    songIndex,
+    submitted,
+    finalStage,
+    finalStep,
+    agentJoined,
+    videoVisible,
+  ]);
+
+  // Observer to smoothly scroll whenever height expands (cards, media, typing)
+  useEffect(() => {
+    if (loading) return;
+    const container = scrollRef.current;
+    if (!container) return;
+
+    let lastHeight = container.scrollHeight;
+
+    const handleHeightChange = () => {
+      if (container.scrollHeight > lastHeight) {
+        lastHeight = container.scrollHeight;
+        scrollToBottom(true);
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleHeightChange();
+    });
+
+    const mutationObserver = new MutationObserver(() => {
+      handleHeightChange();
+    });
+
+    resizeObserver.observe(container);
+    mutationObserver.observe(container, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
+
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [loading]);
+
+  return (
+    <div className="app-viewport">
+      <audio
+        ref={cashAudioRef}
+        src="/audio/cash-confirmation.mp3"
+        preload="auto"
+      />
+
+      <div className="app-frame">
+        {loading ? (
+          <LoadingScreen onFinish={() => setLoading(false)} />
+        ) : (
+          <>
+            <ChatHeader balance={displayBalance} />
+
+            <section className="agent-bar">
+              <div className="agent-avatar">
+                <Image
+                  src="/agent-avatar.jpg"
+                  alt="Kaitlynn W."
+                  width={52}
+                  height={52}
+                  priority
+                />
+              </div>
+              <div className="agent-info">
+                <b>Kaitlynn W.</b>
+                <small>
+                  <i className="status-dot" /> Live Support Agent
+                </small>
+              </div>
+            </section>
+
+            <main className="messages-area" ref={scrollRef}>
+              {/* STEP 0: Typing Message 1 */}
+              {chatStep === 0 && (
+                <TypingIndicator showAvatar={true} />
+              )}
+
+              {/* STEP 1+: Message 1 */}
+              {chatStep >= 1 && (
+                <MessageBubble showAvatar={chatStep === 1}>
+                  <b>To begin your service,</b> your case number is_
+                  <br />
+                  <u>{sessionId}</u>
+                </MessageBubble>
+              )}
+
+              {/* STEP 2: Typing Message 2 */}
+              {chatStep === 2 && (
+                <TypingIndicator showAvatar={true} />
+              )}
+
+              {/* STEP 3+: Message 2 */}
+              {chatStep >= 3 && (
+                <MessageBubble showAvatar={chatStep === 3}>
+                  You&apos;ve been <b>one of the few people</b> selected for the{' '}
+                  <b>Spotify Rewards Program</b>
+                </MessageBubble>
+              )}
+
+              {/* STEP 4: Typing Message 3 */}
+              {chatStep === 4 && (
+                <TypingIndicator showAvatar={true} />
+              )}
+
+              {/* STEP 5+: Message 3 */}
+              {chatStep >= 5 && (
+                <MessageBubble showAvatar={chatStep === 5}>
+                  <b>
+                    We&apos;ve selected four songs for you to listen to and rate.
+                    Get started right here below.
+                  </b>{' '}
+                  👇
+                </MessageBubble>
+              )}
+
+              {/* STEP 6: Typing Song Card */}
+              {chatStep === 6 && (
+                <TypingIndicator showAvatar={true} />
+              )}
+
+              {/* STEP 7+: Song Evaluation Card */}
+              {chatStep >= 7 && !finalStage && (
+                <div key={currentSong.id}>
+                  {submitted ? (
+                    <SuccessCard amount={currentSong.reward} />
+                  ) : (
+                    <EvaluationCard
+                      song={currentSong}
+                      songIndex={songIndex}
+                      totalSongs={songs.length}
+                      showAvatar={true}
+                      onComplete={handleFinishSong}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Final Verification Flow (after all 4 tracks) */}
+              {finalStage && (
+                <div className="final-stage-wrap msg-anim">
+                  {finalStep >= 1 && (
+                    <MessageBubble showAvatar={false}>
+                      <u>Click the button below to continue with your registration.</u>
+                    </MessageBubble>
+                  )}
+
+                  {finalStep === 1 && (
+                    <TypingIndicator showAvatar={true} isAgent={agentJoined} />
+                  )}
+
+                  {finalStep >= 2 && (
+                    <>
+                      <MessageBubble showAvatar={false}>
+                        <em>(Click the button below to continue with your withdrawal)</em>
+                      </MessageBubble>
+
+                      {!agentJoined && (
+                        <button
+                          type="button"
+                          className="verification-btn pop-bounce"
+                          onClick={() => {
+                            setAgentJoined(true);
+                            setTimeout(() => setVideoVisible(true), 600);
+                          }}
+                        >
+                          Start Verification
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {agentJoined && (
+                    <div className="joined-row msg-anim">
+                      <Image
+                        src="/agent-avatar.jpg"
+                        alt="Kaitlynn W."
+                        width={44}
+                        height={44}
+                      />
+                      <div className="msg-bubble">
+                        <b>
+                          ✅ Kaitlynn, the Spotify Rewards representative, has
+                          joined the chat
+                        </b>
+                      </div>
+                    </div>
+                  )}
+
+                  {videoVisible && (
+                    <div className="video-card msg-anim">
+                      <video
+                        src="/kaitlynn-video.mp4"
+                        controls
+                        autoPlay
+                        playsInline
+                      />
+                    </div>
+                  )}
+
+                  {videoVisible && (
+                    <DemoSummary
+                      balance={balance}
+                      totalSongs={songs.length}
+                    />
+                  )}
+                </div>
+              )}
+
+              <div ref={messagesEndRef} className="scroll-anchor" />
+            </main>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
