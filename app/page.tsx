@@ -17,14 +17,14 @@ type Song = {
 
 type Answers = Record<string, string | undefined>;
 
-// 4 active songs as stated in Message 3 ("We've selected four songs...")
+// 6 active songs in exact user-specified order and values
 const songs: Song[] = [
   {
     id: 'adele',
     title: 'Someone Like You',
     artist: 'Adele',
     cover: '/covers/adele.jpg',
-    audioUrl: '/audio/adele-preview.m4a',
+    audioUrl: '/audio/adele-preview.mp3',
     reward: 67.45,
     questions: [
       'Do you listen to Adele often?',
@@ -36,8 +36,8 @@ const songs: Song[] = [
     title: 'good 4 u',
     artist: 'Olivia Rodrigo',
     cover: '/covers/olivia.jpg',
-    audioUrl: '/audio/olivia-preview.m4a',
-    reward: 74.2,
+    audioUrl: '/audio/olivia-preview.mp3',
+    reward: 81.30,
     questions: [
       'Do you listen to Olivia Rodrigo often?',
       'Do you usually listen to good 4 u?',
@@ -48,8 +48,8 @@ const songs: Song[] = [
     title: 'Blinding Lights',
     artist: 'The Weeknd',
     cover: '/covers/weeknd.jpg',
-    audioUrl: '/audio/weeknd-preview.m4a',
-    reward: 81.3,
+    audioUrl: '/audio/weeknd-preview.mp3',
+    reward: 74.20,
     questions: [
       'Do you listen to The Weeknd often?',
       'Do you usually listen to Blinding Lights?',
@@ -60,11 +60,35 @@ const songs: Song[] = [
     title: 'Levitating',
     artist: 'Dua Lipa',
     cover: '/covers/dua-lipa.jpg',
-    audioUrl: '/audio/dua-lipa-preview.m4a',
-    reward: 69.8,
+    audioUrl: '/audio/dua-lipa-preview.mp3',
+    reward: 69.80,
     questions: [
       'Do you listen to Dua Lipa often?',
       'Do you usually listen to Levitating?',
+    ],
+  },
+  {
+    id: 'harry-styles',
+    title: 'As It Was',
+    artist: 'Harry Styles',
+    cover: '/covers/harry-styles.jpg',
+    audioUrl: '/audio/harry-styles-preview.mp3',
+    reward: 78.50,
+    questions: [
+      'Do you listen to Harry Styles often?',
+      'Do you usually listen to As It Was?',
+    ],
+  },
+  {
+    id: 'miley',
+    title: 'Flowers',
+    artist: 'Miley Cyrus',
+    cover: '/covers/miley.jpg',
+    audioUrl: '/audio/miley-preview.mp3',
+    reward: 67.52,
+    questions: [
+      'Do you listen to Miley Cyrus often?',
+      'Do you usually listen to Flowers?',
     ],
   },
 ];
@@ -152,13 +176,26 @@ function ChatHeader({ balance }: { balance: number }) {
 
 function SpotifyAvatar() {
   return (
-    <div className="chat-avatar pop-bounce" title="Spotify Rewards Bot">
+    <div className="chat-avatar pop-bounce" title="Spotify Rewards">
       <Image
         src="/spotify-logo.webp"
         alt="Spotify"
-        width={48}
-        height={48}
+        width={44}
+        height={44}
         priority
+      />
+    </div>
+  );
+}
+
+function AgentAvatar() {
+  return (
+    <div className="chat-avatar agent-chat-avatar pop-bounce" title="Kaitlynn W.">
+      <Image
+        src="/agent-avatar.jpg"
+        alt="Kaitlynn"
+        width={44}
+        height={44}
       />
     </div>
   );
@@ -166,21 +203,23 @@ function SpotifyAvatar() {
 
 function MessageBubble({
   children,
-  showAvatar = false,
+  showAvatar = true,
+  isAgent = false,
 }: {
   children: React.ReactNode;
   showAvatar?: boolean;
+  isAgent?: boolean;
 }) {
   return (
     <div className="msg-row msg-anim">
-      {showAvatar && <SpotifyAvatar />}
+      {showAvatar && (isAgent ? <AgentAvatar /> : <SpotifyAvatar />)}
       <div className="msg-bubble">{children}</div>
     </div>
   );
 }
 
 function TypingIndicator({
-  showAvatar = false,
+  showAvatar = true,
   isAgent = false,
 }: {
   showAvatar?: boolean;
@@ -188,20 +227,7 @@ function TypingIndicator({
 }) {
   return (
     <div className="typing-row msg-anim">
-      {showAvatar && (
-        isAgent ? (
-          <div className="chat-avatar pop-bounce" title="Kaitlynn W.">
-            <Image
-              src="/agent-avatar.jpg"
-              alt="Kaitlynn"
-              width={48}
-              height={48}
-            />
-          </div>
-        ) : (
-          <SpotifyAvatar />
-        )
-      )}
+      {showAvatar && (isAgent ? <AgentAvatar /> : <SpotifyAvatar />)}
       <div className="typing-bubble">
         <i />
         <i />
@@ -210,6 +236,10 @@ function TypingIndicator({
     </div>
   );
 }
+
+const PLAY_BEFORE_FADE_SECONDS = 8.0; // Plays at full volume for 8 full seconds
+const FADE_DURATION = 3.0; // 3 seconds gentle fade out (from 8.0s to 11.0s)
+const TOTAL_PLAY_TIME = PLAY_BEFORE_FADE_SECONDS + FADE_DURATION; // 11.0s total
 
 function AudioPlayer({
   song,
@@ -221,67 +251,108 @@ function AudioPlayer({
   onUnlock: () => void;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const unlockSafetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeAnimRef = useRef<number | null>(null);
+  const isFadingRef = useRef(false);
+  const onUnlockRef = useRef(onUnlock);
+  onUnlockRef.current = onUnlock;
+  const unlockedRef = useRef(unlocked);
+  unlockedRef.current = unlocked;
 
   const [playing, setPlaying] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  // Smooth gradual volume fade out strictly after 8 seconds
+  const startFadeOut = (audioEl: HTMLAudioElement) => {
+    if (isFadingRef.current) return;
+    isFadingRef.current = true;
+
+    const startVol = audioEl.volume;
+    const startTime = performance.now();
+    const durationMs = FADE_DURATION * 1000;
+
+    const step = () => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(1, elapsed / durationMs);
+
+      // Smooth gradual fade: volume drops gently down to 0
+      audioEl.volume = Math.max(0, startVol * Math.pow(1 - progress, 1.4));
+
+      if (progress < 1) {
+        fadeAnimRef.current = requestAnimationFrame(step);
+      } else {
+        audioEl.pause();
+        audioEl.volume = 1;
+        setPlaying(false);
+        isFadingRef.current = false;
+        fadeAnimRef.current = null;
+      }
+    };
+
+    fadeAnimRef.current = requestAnimationFrame(step);
+  };
 
   const togglePlay = async () => {
-    if (!audioRef.current) return;
+    const el = audioRef.current;
+    if (!el) return;
 
     if (playing) {
-      audioRef.current.pause();
+      if (fadeAnimRef.current) {
+        cancelAnimationFrame(fadeAnimRef.current);
+        fadeAnimRef.current = null;
+        isFadingRef.current = false;
+      }
+      el.pause();
       setPlaying(false);
     } else {
       try {
-        audioRef.current.volume = 1;
-        await audioRef.current.play();
+        if (!isFadingRef.current) {
+          el.volume = 1;
+        }
+        await el.play();
         setPlaying(true);
-
-        // Safety fallback: in case browser throttles timeupdate in iframes,
-        // automatically unlock after 1.2 seconds of playback!
-        if (unlockSafetyTimerRef.current) clearTimeout(unlockSafetyTimerRef.current);
-        unlockSafetyTimerRef.current = setTimeout(() => {
-          if (!unlocked) {
-            onUnlock();
-          }
-        }, 1200);
       } catch (err) {
         console.warn('Audio playback error (browser policy / sandbox):', err);
         setHasError(true);
-        // Never leave user blocked on audio error
-        onUnlock();
+        onUnlockRef.current();
       }
     }
   };
 
+  // Manage audio event listeners and track changes cleanly
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
 
+    // Reset track-specific state
+    setPlaying(false);
+    setHasError(false);
+    setCurrentTime(0);
+    isFadingRef.current = false;
+    if (fadeAnimRef.current) {
+      cancelAnimationFrame(fadeAnimRef.current);
+      fadeAnimRef.current = null;
+    }
+
+    try {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = 1;
+      el.load();
+    } catch {}
+
     const onTimeUpdate = () => {
       const current = el.currentTime;
+      setCurrentTime(current);
 
-      if (current >= 1 && !unlocked) {
-        onUnlock();
-
-        // Fade audio smoothly
-        if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
-        const startVol = el.volume;
-        const startT = performance.now();
-
-        fadeTimerRef.current = setInterval(() => {
-          const progress = Math.min(1, (performance.now() - startT) / 800);
-          el.volume = startVol * (1 - progress);
-          if (progress >= 1) {
-            if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
-            fadeTimerRef.current = null;
-            el.pause();
-            el.volume = 1;
-            setPlaying(false);
-          }
-        }, 40);
+      // Unlocks evaluation at exactly 8.0 seconds!
+      if (current >= PLAY_BEFORE_FADE_SECONDS) {
+        if (!unlockedRef.current) {
+          onUnlockRef.current();
+        }
+        if (!isFadingRef.current) {
+          startFadeOut(el);
+        }
       }
     };
 
@@ -289,7 +360,7 @@ function AudioPlayer({
     const onPause = () => setPlaying(false);
     const onError = () => {
       setHasError(true);
-      onUnlock();
+      onUnlockRef.current();
     };
 
     el.addEventListener('timeupdate', onTimeUpdate);
@@ -298,26 +369,36 @@ function AudioPlayer({
     el.addEventListener('error', onError);
 
     return () => {
+      if (fadeAnimRef.current) {
+        cancelAnimationFrame(fadeAnimRef.current);
+        fadeAnimRef.current = null;
+      }
+      try {
+        el.pause();
+        el.currentTime = 0;
+        el.volume = 1;
+      } catch {}
       el.removeEventListener('timeupdate', onTimeUpdate);
       el.removeEventListener('play', onPlay);
       el.removeEventListener('pause', onPause);
       el.removeEventListener('error', onError);
-      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
-      if (unlockSafetyTimerRef.current) clearTimeout(unlockSafetyTimerRef.current);
     };
-  }, [onUnlock, unlocked]);
+  }, [song.id]);
+
+  const remainingSeconds = Math.max(1, Math.ceil(PLAY_BEFORE_FADE_SECONDS - currentTime));
 
   const noticeText = hasError
     ? '⚠️ Audio preview restricted by browser — questions unlocked below!'
     : unlocked
     ? '🎉 Preview completed! Answer the questions below and tap FINISH & EARN'
     : playing
-    ? '🎵 Playing preview... unlock in 1 second'
+    ? `🎵 Listen to the preview (${remainingSeconds}s remaining) to unlock evaluation.`
     : '🎵 Press PLAY to listen to the preview and unlock the evaluation.';
 
   return (
     <>
       <audio
+        key={song.id}
         ref={audioRef}
         src={song.audioUrl}
         preload="auto"
@@ -374,89 +455,106 @@ function AudioPlayer({
   );
 }
 
-function EvaluationCard({
+function MusicEvaluationBox({
   song,
-  songIndex,
-  totalSongs,
+  isConfirmed,
+  lastReward,
   showAvatar = true,
   onComplete,
 }: {
   song: Song;
-  songIndex: number;
-  totalSongs: number;
+  isConfirmed: boolean;
+  lastReward: number;
   showAvatar?: boolean;
   onComplete: (amount: number) => void;
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
 
+  // Reset unlocked state and answers when advancing to the next song
+  useEffect(() => {
+    setUnlocked(false);
+    setAnswers({});
+  }, [song.id]);
+
   const isReady = unlocked && song.questions.every((_, idx) => answers[idx]);
 
   return (
-    <div className="card-shell msg-anim">
+    <div className="card-shell msg-anim music-eval-shell">
       {showAvatar && <SpotifyAvatar />}
 
-      <div className="eval-card">
-        <div className="track-progress-badge">
-          Track {songIndex + 1} of {totalSongs} • Earn ${song.reward.toFixed(2)}
+      {isConfirmed ? (
+        <div className="success-card msg-anim">
+          <div className="check-icon">
+            <Check size={28} strokeWidth={3} />
+          </div>
+          <b>Evaluation Submitted!</b>
+          <span className="success-track-title">
+            {song.title} • {song.artist}
+          </span>
+          <small>BALANCE UPDATED</small>
+          <strong>+${lastReward.toFixed(2)}</strong>
         </div>
+      ) : (
+        <div className="eval-card msg-anim" key={song.id}>
+          <AudioPlayer
+            song={song}
+            unlocked={unlocked}
+            onUnlock={() => setUnlocked(true)}
+          />
 
-        <AudioPlayer
-          song={song}
-          unlocked={unlocked}
-          onUnlock={() => setUnlocked(true)}
-        />
-
-        <div className="questions-list">
-          {song.questions.map((question, idx) => (
-            <div className="question-block" key={question}>
-              <b>{question}</b>
-              <div className="options-grid">
-                {['Yes', 'No'].map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    disabled={!unlocked}
-                    className={`opt-btn ${
-                      answers[idx] === opt ? 'selected' : ''
-                    }`}
-                    onClick={() =>
-                      setAnswers((prev) => ({ ...prev, [idx]: opt }))
-                    }
-                  >
-                    {opt}
-                  </button>
-                ))}
+          <div className="questions-list">
+            {song.questions.map((question, idx) => (
+              <div className="question-block" key={question}>
+                <b>{question}</b>
+                <div className="options-grid">
+                  {['Yes', 'No'].map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      disabled={!unlocked}
+                      className={`opt-btn ${
+                        answers[idx] === opt ? 'selected' : ''
+                      }`}
+                      onClick={() =>
+                        setAnswers((prev) => ({ ...prev, [idx]: opt }))
+                      }
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        <button
-          type="button"
-          className={`finish-btn ${isReady ? 'ready' : ''}`}
-          disabled={!isReady}
-          onClick={() => onComplete(song.reward)}
-        >
-          FINISH &amp; EARN
-        </button>
-      </div>
+          <button
+            type="button"
+            className={`finish-btn ${isReady ? 'ready' : ''}`}
+            disabled={!isReady}
+            onClick={() => onComplete(song.reward)}
+          >
+            FINISH &amp; EARN
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function SuccessCard({ amount }: { amount: number }) {
+function DemoSummaryCard({
+  balance,
+  totalSongs,
+  showAvatar = true,
+}: {
+  balance: number;
+  totalSongs: number;
+  showAvatar?: boolean;
+}) {
   return (
-    <div className="card-shell msg-anim">
-      <SpotifyAvatar />
-      <div className="success-card">
-        <div className="check-icon">
-          <Check size={28} strokeWidth={3} />
-        </div>
-        <b>Evaluation Submitted!</b>
-        <small>BALANCE UPDATED</small>
-        <strong>+${amount.toFixed(2)}</strong>
-      </div>
+    <div className="card-shell msg-anim summary-card-shell">
+      {showAvatar && <SpotifyAvatar />}
+      <DemoSummary balance={balance} totalSongs={totalSongs} />
     </div>
   );
 }
@@ -528,7 +626,10 @@ export default function Page() {
   const [balance, setBalance] = useState(0);
   const [displayBalance, setDisplayBalance] = useState(0);
   const [songIndex, setSongIndex] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
+
+  // In-place confirmation state for the single evaluation card (no extra bubbles/cards)
+  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [lastReward, setLastReward] = useState(0);
 
   // Chat sequence state machine:
   // step 0: Typing 1
@@ -538,22 +639,41 @@ export default function Page() {
   // step 4: Typing 3
   // step 5: Msg 3 displayed
   // step 6: Typing 4
-  // step 7: Song Card displayed!
+  // step 7: Music Evaluation Box displayed!
   const [chatStep, setChatStep] = useState(0);
 
-  // Final stage sequence
+  // Final stage sequence state machine:
+  // 0: not started
+  // 1: typing before Message 4 (Spotify)
+  // 2: Message 4 visible (Spotify)
+  // 3: typing before Message 5 (Spotify)
+  // 4: Message 5 & Start Verification button visible (Spotify)
+  // 5: typing for Kaitlynn (Agent)
+  // 6: Kaitlynn joined message visible (Agent)
+  // 7: typing before Video Card (Agent)
+  // 8: Video Card visible (Agent)
+  // 9: typing before Summary Card (Spotify)
+  // 10: Summary Card visible (Spotify)
   const [finalStage, setFinalStage] = useState(false);
-  const [finalStep, setFinalStep] = useState(0);
-  const [agentJoined, setAgentJoined] = useState(false);
-  const [videoVisible, setVideoVisible] = useState(false);
+  const [finalPhase, setFinalPhase] = useState(0);
 
   const [sessionId, setSessionId] = useState('809821');
-  const [completedSongs, setCompletedSongs] = useState<number[]>([]);
 
   const cashAudioRef = useRef<HTMLAudioElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finalTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const currentSong = songs[songIndex] || songs[0];
+
+  const clearAllTimers = () => {
+    if (confirmTimerRef.current) {
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = null;
+    }
+    finalTimersRef.current.forEach(clearTimeout);
+    finalTimersRef.current = [];
+  };
 
   // Initialize session ID and balance safely without crashing iframe storage
   useEffect(() => {
@@ -615,6 +735,13 @@ export default function Page() {
     };
   }, [loading]);
 
+  // Clean up all timers on unmount
+  useEffect(() => {
+    return () => {
+      clearAllTimers();
+    };
+  }, []);
+
   // Reset entire flow
   const handleReset = () => {
     try {
@@ -622,24 +749,70 @@ export default function Page() {
         window.sessionStorage?.removeItem('rewards-balance');
       }
     } catch {}
+    clearAllTimers();
     setBalance(0);
     setDisplayBalance(0);
     setSongIndex(0);
-    setSubmitted(false);
+    setIsConfirmed(false);
+    setLastReward(0);
     setFinalStage(false);
-    setFinalStep(0);
-    setAgentJoined(false);
-    setVideoVisible(false);
-    setCompletedSongs([]);
+    setFinalPhase(0);
     setLoading(true);
   };
 
-  // Handle completing an evaluation
-  const handleFinishSong = (rewardAmount: number) => {
-    if (completedSongs.includes(songIndex)) return;
+  // Start the 3-second paced final messages sequence after 6th track evaluation
+  const startFinalSequence = () => {
+    setFinalPhase(1); // Typing before Message 4 (Spotify)
 
-    setCompletedSongs((prev) => [...prev, songIndex]);
-    setSubmitted(true);
+    const t1 = setTimeout(() => {
+      setFinalPhase(2); // Message 4 arrives (Spotify)
+    }, 1200);
+
+    const t2 = setTimeout(() => {
+      setFinalPhase(3); // 3 seconds later: Typing before Message 5 (Spotify)
+    }, 4200);
+
+    const t3 = setTimeout(() => {
+      setFinalPhase(4); // Message 5 + Start Verification button arrives (Spotify)
+    }, 5400);
+
+    finalTimersRef.current.push(t1, t2, t3);
+  };
+
+  // User clicked Start Verification -> Kaitlynn sequence
+  const handleStartVerification = () => {
+    setFinalPhase(5); // Typing for Kaitlynn (Agent)
+
+    const t1 = setTimeout(() => {
+      setFinalPhase(6); // Kaitlynn joined message (Agent)
+    }, 1200);
+
+    const t2 = setTimeout(() => {
+      setFinalPhase(7); // 3 seconds later: Typing before Video Card (Agent)
+    }, 4200);
+
+    const t3 = setTimeout(() => {
+      setFinalPhase(8); // Video card arrives (Agent)
+    }, 5400);
+
+    const t4 = setTimeout(() => {
+      setFinalPhase(9); // 3 seconds later: Typing before Summary Card (Spotify)
+    }, 8400);
+
+    const t5 = setTimeout(() => {
+      setFinalPhase(10); // Summary card arrives (Spotify)
+    }, 9600);
+
+    finalTimersRef.current.push(t1, t2, t3, t4, t5);
+  };
+
+  // Handle completing an evaluation:
+  // Shows 4-second confirmation in the EXACT SAME box, then advances in-place to next song
+  const handleFinishSong = (rewardAmount: number) => {
+    if (isConfirmed) return;
+
+    setIsConfirmed(true);
+    setLastReward(rewardAmount);
 
     cashAudioRef.current?.play().catch(() => {});
 
@@ -661,37 +834,21 @@ export default function Page() {
     };
 
     requestAnimationFrame(animateNumber);
-  };
 
-  // Next song transition
-  useEffect(() => {
-    if (!submitted) return;
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
 
-    const timer = setTimeout(() => {
+    // Keep confirmation displayed for exactly 4 seconds, then update in-place
+    confirmTimerRef.current = setTimeout(() => {
       if (songIndex < songs.length - 1) {
-        setSubmitted(false);
         setSongIndex((i) => i + 1);
+        setIsConfirmed(false);
       } else {
+        // All 6 tracks completed! Advance to final verification sequence
         setFinalStage(true);
+        startFinalSequence();
       }
-    }, 2600);
-
-    return () => clearTimeout(timer);
-  }, [submitted, songIndex]);
-
-  // Final stage messages pacing
-  useEffect(() => {
-    if (!finalStage) return;
-
-    setFinalStep(0);
-    const t1 = setTimeout(() => setFinalStep(1), 800);
-    const t2 = setTimeout(() => setFinalStep(2), 2000);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [finalStage]);
+    }, 4000);
+  };
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -702,9 +859,13 @@ export default function Page() {
       top: el.scrollHeight,
       behavior: smooth ? 'smooth' : 'auto',
     });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto',
+      block: 'end',
+    });
   };
 
-  // Auto-scroll on state changes
+  // Auto-scroll smoothly on any state changes
   useEffect(() => {
     if (loading) return;
     const timeout = setTimeout(() => {
@@ -716,11 +877,9 @@ export default function Page() {
     loading,
     chatStep,
     songIndex,
-    submitted,
+    isConfirmed,
     finalStage,
-    finalStep,
-    agentJoined,
-    videoVisible,
+    finalPhase,
   ]);
 
   // Observer to smoothly scroll whenever height expands (cards, media, typing)
@@ -801,8 +960,7 @@ export default function Page() {
               {/* STEP 1+: Message 1 */}
               {chatStep >= 1 && (
                 <MessageBubble showAvatar={chatStep === 1}>
-                  <b>To begin your service,</b> your case number is_
-                  <br />
+                  <b>To begin your service,</b> your case number is{' '}
                   <u>{sessionId}</u>
                 </MessageBubble>
               )}
@@ -829,7 +987,7 @@ export default function Page() {
               {chatStep >= 5 && (
                 <MessageBubble showAvatar={chatStep === 5}>
                   <b>
-                    We&apos;ve selected four songs for you to listen to and rate.
+                    We&apos;ve selected six songs for you to listen to and rate.
                     Get started right here below.
                   </b>{' '}
                   👇
@@ -841,50 +999,49 @@ export default function Page() {
                 <TypingIndicator showAvatar={true} />
               )}
 
-              {/* STEP 7+: Song Evaluation Card */}
-              {chatStep >= 7 && !finalStage && (
-                <div key={currentSong.id}>
-                  {submitted ? (
-                    <SuccessCard amount={currentSong.reward} />
-                  ) : (
-                    <EvaluationCard
-                      song={currentSong}
-                      songIndex={songIndex}
-                      totalSongs={songs.length}
-                      showAvatar={true}
-                      onComplete={handleFinishSong}
-                    />
-                  )}
-                </div>
+              {/* STEP 7+: Single Persistent Music Evaluation Box in Conversation (no duplicates, in-place 4s confirmation) */}
+              {chatStep >= 7 && (
+                <MusicEvaluationBox
+                  song={currentSong}
+                  isConfirmed={isConfirmed}
+                  lastReward={lastReward}
+                  showAvatar={!finalStage}
+                  onComplete={handleFinishSong}
+                />
               )}
 
-              {/* Final Verification Flow (after all 4 tracks) */}
+              {/* Final Verification Flow (after all 6 tracks) */}
               {finalStage && (
-                <div className="final-stage-wrap msg-anim">
-                  {finalStep >= 1 && (
-                    <MessageBubble showAvatar={false}>
+                <div className="final-stage-wrap">
+                  {/* Step 1: Typing before Message 4 (Spotify) */}
+                  {finalPhase === 1 && (
+                    <TypingIndicator showAvatar={true} isAgent={false} />
+                  )}
+
+                  {/* Step 2+: Message 4 */}
+                  {finalPhase >= 2 && (
+                    <MessageBubble showAvatar={finalPhase === 2}>
                       <u>Click the button below to continue with your registration.</u>
                     </MessageBubble>
                   )}
 
-                  {finalStep === 1 && (
-                    <TypingIndicator showAvatar={true} isAgent={agentJoined} />
+                  {/* Step 3: Typing before Message 5 (Spotify) */}
+                  {finalPhase === 3 && (
+                    <TypingIndicator showAvatar={true} isAgent={false} />
                   )}
 
-                  {finalStep >= 2 && (
+                  {/* Step 4+: Message 5 */}
+                  {finalPhase >= 4 && (
                     <>
-                      <MessageBubble showAvatar={false}>
+                      <MessageBubble showAvatar={finalPhase === 4}>
                         <em>(Click the button below to continue with your withdrawal)</em>
                       </MessageBubble>
 
-                      {!agentJoined && (
+                      {finalPhase === 4 && (
                         <button
                           type="button"
                           className="verification-btn pop-bounce"
-                          onClick={() => {
-                            setAgentJoined(true);
-                            setTimeout(() => setVideoVisible(true), 600);
-                          }}
+                          onClick={handleStartVerification}
                         >
                           Start Verification
                         </button>
@@ -892,14 +1049,15 @@ export default function Page() {
                     </>
                   )}
 
-                  {agentJoined && (
+                  {/* Step 5: Typing for Kaitlynn (Agent) */}
+                  {finalPhase === 5 && (
+                    <TypingIndicator showAvatar={true} isAgent={true} />
+                  )}
+
+                  {/* Step 6+: Kaitlynn joined */}
+                  {finalPhase >= 6 && (
                     <div className="joined-row msg-anim">
-                      <Image
-                        src="/agent-avatar.jpg"
-                        alt="Kaitlynn W."
-                        width={44}
-                        height={44}
-                      />
+                      {finalPhase === 6 && <AgentAvatar />}
                       <div className="msg-bubble">
                         <b>
                           ✅ Kaitlynn, the Spotify Rewards representative, has
@@ -909,21 +1067,37 @@ export default function Page() {
                     </div>
                   )}
 
-                  {videoVisible && (
-                    <div className="video-card msg-anim">
-                      <video
-                        src="/kaitlynn-video.mp4"
-                        controls
-                        autoPlay
-                        playsInline
-                      />
+                  {/* Step 7: Typing before Video Card (Agent) */}
+                  {finalPhase === 7 && (
+                    <TypingIndicator showAvatar={true} isAgent={true} />
+                  )}
+
+                  {/* Step 8+: Video Card */}
+                  {finalPhase >= 8 && (
+                    <div className="card-shell msg-anim video-card-shell">
+                      {finalPhase === 8 && <AgentAvatar />}
+                      <div className="video-card">
+                        <video
+                          src="/kaitlynn-video.mp4"
+                          controls
+                          autoPlay
+                          playsInline
+                        />
+                      </div>
                     </div>
                   )}
 
-                  {videoVisible && (
-                    <DemoSummary
+                  {/* Step 9: Typing before Demo Summary (Spotify) */}
+                  {finalPhase === 9 && (
+                    <TypingIndicator showAvatar={true} isAgent={false} />
+                  )}
+
+                  {/* Step 10: Demo Summary Card */}
+                  {finalPhase >= 10 && (
+                    <DemoSummaryCard
                       balance={balance}
                       totalSongs={songs.length}
+                      showAvatar={finalPhase === 10}
                     />
                   )}
                 </div>

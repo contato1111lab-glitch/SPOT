@@ -278,21 +278,27 @@ button {
 /* Chat Avatar */
 .chat-avatar {
   position: absolute;
-  left: -58px;
-  top: 50%;
-  margin-top: -24px;
-  width: 48px;
-  height: 48px;
+  left: -54px;
+  bottom: 0px;
+  top: auto;
+  margin-top: 0;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  border: 4px solid #111111;
+  border: 2px solid #111111;
   background: #111111;
   overflow: hidden;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
-  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: center;
   transform-origin: center center;
+}
+
+.chat-avatar.agent-chat-avatar {
+  border: 2.5px solid var(--green);
+  box-shadow: 0 0 0 2px #dcefe3, 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .chat-avatar img {
@@ -305,11 +311,11 @@ button {
 /* Message Bubble */
 .msg-row {
   position: relative;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   width: 100%;
-  min-height: 48px;
+  min-height: 44px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .msg-bubble {
@@ -365,11 +371,19 @@ button {
 /* Typing Indicator */
 .typing-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
   position: relative;
-  margin-bottom: 12px;
-  min-height: 48px;
+  margin-bottom: 14px;
+  min-height: 44px;
+}
+
+.typing-row .chat-avatar {
+  position: absolute;
+  left: -54px;
+  bottom: 0px;
+  top: auto;
+  margin-top: 0;
 }
 
 .typing-bubble {
@@ -410,7 +424,7 @@ button {
   }
 }
 
-/* Outer Card Shell (matches chat-reference.png) */
+/* Outer Card Shell (matches chat-reference.png and image_88b025d1.png) */
 .card-shell {
   position: relative;
   background: #f1f1f1;
@@ -421,12 +435,39 @@ button {
   width: 100%;
 }
 
-/* In chat-reference.png, the avatar sits at the bottom-left of the card shell */
+/* Aligns avatar to the bottom-left of the card shell */
 .card-shell .chat-avatar {
-  bottom: 14px;
+  position: absolute;
+  left: -54px;
+  bottom: 0px;
   top: auto;
   margin-top: 0;
   transform: none;
+}
+
+.summary-card-shell {
+  background: transparent;
+  padding: 0;
+  margin-top: 14px;
+  margin-bottom: 24px;
+}
+
+.summary-card-shell .chat-avatar {
+  left: -54px;
+  bottom: 0px;
+}
+
+.video-card-shell {
+  background: #f1f1f1;
+  border-radius: 14px;
+  padding: 14px;
+  margin-top: 10px;
+  margin-bottom: 24px;
+}
+
+.video-card-shell .chat-avatar {
+  left: -54px;
+  bottom: 0px;
 }
 
 .eval-card {
@@ -436,6 +477,10 @@ button {
   border-radius: 17px;
   padding: 18px;
   box-shadow: 0 0 0 3px #dce8df, 0 8px 24px rgba(0, 0, 0, 0.35);
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .track-progress-badge {
@@ -665,7 +710,7 @@ button {
 
 /* Success Card */
 .success-card {
-  min-height: 380px;
+  min-height: 480px;
   border: 1.5px solid var(--green);
   border-radius: 17px;
   background: #102b1c;
@@ -679,14 +724,24 @@ button {
   animation: success-glow 1.6s ease-in-out infinite alternate;
 }
 
+.success-track-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #c4ebd0;
+  background: rgba(30, 215, 96, 0.12);
+  border: 1px solid rgba(30, 215, 96, 0.3);
+  padding: 4px 14px;
+  border-radius: 999px;
+}
+
 @keyframes success-glow {
   from { box-shadow: 0 0 10px rgba(30, 215, 96, 0.2); }
   to { box-shadow: 0 0 26px rgba(30, 215, 96, 0.4); }
 }
 
 .check-icon {
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: #1cc55a;
   color: #06150a;
@@ -696,7 +751,7 @@ button {
 }
 
 .success-card b {
-  font-size: 20px;
+  font-size: 19px;
   color: #ffffff;
 }
 
@@ -708,7 +763,7 @@ button {
 }
 
 .success-card strong {
-  font-size: 32px;
+  font-size: 30px;
   color: var(--green);
   font-variant-numeric: tabular-nums;
 }
@@ -740,20 +795,12 @@ button {
 }
 
 .joined-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   position: relative;
-  margin-left: -58px;
-}
-
-.joined-row > img {
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--green);
+  margin-bottom: 14px;
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: flex-end;
 }
 
 .joined-row .msg-bubble {
@@ -938,10 +985,12 @@ button {
   }
 
   .chat-avatar {
-    width: 44px;
-    height: 44px;
-    left: -54px;
-    margin-top: -22px;
+    width: 42px;
+    height: 42px;
+    left: -52px;
+    bottom: 0px;
+    top: auto;
+    margin-top: 0;
   }
 
   .msg-bubble {
@@ -956,7 +1005,8 @@ button {
   }
 
   .card-shell .chat-avatar {
-    bottom: 10px;
+    left: -52px;
+    bottom: 0px;
   }
 
   .eval-card {

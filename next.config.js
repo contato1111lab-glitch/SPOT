@@ -3,8 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   allowedDevOrigins: [
-    'ais-dev-5r3muatmwvxqsdwjrpjpgg-181216241107.us-east5.run.app',
-    'ais-pre-5r3muatmwvxqsdwjrpjpgg-181216241107.us-east5.run.app',
+    'ais-dev-ji5ifuc3yawfsd4xshyruy-22946754136.us-west2.run.app',
+    'ais-pre-ji5ifuc3yawfsd4xshyruy-22946754136.us-west2.run.app',
     'localhost:3000',
     '*.run.app',
   ],
